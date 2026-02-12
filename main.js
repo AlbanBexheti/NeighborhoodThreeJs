@@ -62,6 +62,201 @@ let buildingMaterialCursor = 0;
 // --- Initialize Materials ---
 const { walkwayMaterial, roadMaterial, buildingMaterials } = createMaterials();
 
+// =============================================
+// === TEXTURE CONFIGURATION - EDIT THIS ===
+// =============================================
+const BUILDING_TEXTURES = {
+    '1': 'textures/Glass_Facade001_2K-JPG/Glass_Facade001_2K_BaseColor.jpg',
+    '5': 'textures/plastered_wall_05_2k_blend/plastered_wall_05_diff_2k.jpg',
+    '10': 'textures/concrete_pavers_2k_blend/concrete_pavers_diff_2k.jpg',
+    '96': 'textures/others_0027_1k_48eRVz/rectorate_txt_1k.jpg',
+    '97': 'textures/others_0027_1k_48eRVz/rectorate_txt_1k.jpg',
+    // Add more textures here as needed
+};
+
+const ROAD_TEXTURE = 'textures/asphalt_track_2k_blend/asphalt_track_diff_2k.jpg'; // Change this to any texture you want
+const ROAD_TEXTURE_REPEAT = 20; // How many times the texture repeats along the road
+
+// =============================================
+// === BUILDING NAMES - EDIT THIS ===
+// =============================================
+const BUILDING_NAMES = {
+    '1': 'Less Commerce - Security',
+    '2': 'Warehouse',
+    '3': 'Less Commerce',
+    '4': 'Dauti Commerce',
+    '5': 'Engineering Building',
+    '6': 'Warehouse',
+    '7': 'Warehouse',
+    '8': '818',
+    '9': 'Dormitory',
+    '10': 'Locker Room',
+    '11': 'Equipments Building',
+    '12': 'Public Health',
+    '13': 'Research Center',
+    '14': 'Biotech Lab',
+    '15': '817',
+    '16': '816',
+    '17': 'Biology Building',
+    '18': 'Mathematics Building',
+    '19': 'Computer Science',
+    '20': 'Data Science Center',
+    '21': 'Art & Design',
+    '22': '813',
+    '23': 'Library',
+    '24': 'Dormitory',
+    '25': 'Getaway Spot',
+    '26': '812',
+    '27': '811',
+    '28': 'Dormitory',
+    '29': '1001',
+    '30': 'Anthropology Building',
+    '31': '809',
+    '32': '810',
+    '33': 'Dormitory',
+    '34': 'Lecture Hall 2',
+    '35': '1002',
+    '36': 'Dormitory',
+    '37': 'Education Building',
+    '38': 'Sports Science',
+    '39': 'FCST 305',
+    '40': 'Nish Man',
+    '41': '814',
+    '42': '400',
+    '43': '804',
+    '44': '803',
+    '45': '304',
+    '46': 'Student Apartments',
+    '47': '815',
+    '48': 'Liberta Company',
+    '49': 'Lecture Hall 1',
+    '50': '805',
+    '51': '806',
+    '52': '701',
+    '53': 'Cafeteria',
+    '54': 'Food Court',
+    '55': '303',
+    '56': 'Tech Park',
+    '57': 'Warehouse',
+    '58': 'Coffe Shop',
+    '59': 'SEEU Biffe',
+    '60': 'Student Services',
+    '61': '302',
+    '62': 'Student Services',
+    '63': '301',
+    '64': 'Moonlight',
+    '65': 'Maro Caffe',
+    '66': 'Seeu Security Cabin',
+    '67': 'Burek n,sac',
+    '68': 'Carwash',
+    '69': 'Copyshop',
+    '70': 'Tech Companies',
+    '71': 'Solar Pannels Parking',
+    '72': 'Apartment Complex B',
+    '73': 'Graduate Housing',
+    '74': 'Ultra Coffe Bar',
+    '75': 'Mosha Pijade',
+    '76': 'Mosha Pijade',
+    '77': 'Mosha Pijade',
+    '78': 'Parking Garage 3',
+    '79': 'Barn',
+    '80': 'Mosha Pijade',
+    '81': 'Mosha Pijade',
+    '82': 'Mosha Pijade',
+    '83': 'Tok 2000',
+    '84': 'Sports Center',
+    '85': 'Nikola Shtejn',
+    '86': 'Facilities Management',
+    '87': 'Fast Food',
+    '88': 'Barbers Shop',
+    '89': 'Dormitory',
+    '90': 'Dormitory',
+    '91': 'Performing Arts Center',
+    '92': 'Museum',
+    '93': 'Gallery',
+    '94': 'Auditorium',
+    '95': 'Concert Hall',
+    '96': 'Rectorate',
+    '97': 'Rectorate',
+    '98': 'Solar Pannels Parking',
+    '99': 'Conference Center',
+    '100': 'UT - Dorm',
+    '101': 'Foundation Building',
+    '102': 'Development Office',
+    '103': 'Admissions Office',
+    '104': 'Registrar Office',
+    '105': 'Financial Aid',
+    '106': 'UT - Restaurant',
+    '107': 'IT Services',
+    '108': 'UT - Architecture',
+    '109': 'UT - Biffe',
+    '110': 'Research Park',
+    '111': 'University of Tetova',
+    '112': 'UT - Sports Hall',
+    '113': 'Technology Transfer',
+    '114': 'Kipper Market'
+};
+
+const TEXTURE_REPEAT = 2;
+const TEXTURE_ROUGHNESS = 0.7;
+const TEXTURE_METALNESS = 0.2;
+// =============================================
+
+// Texture loader and cache
+const textureLoader = new THREE.TextureLoader();
+const textureCache = {};
+
+function getTextureForBuilding(buildingId) {
+    const texturePath = BUILDING_TEXTURES[buildingId];
+    if (!texturePath) return null;
+    
+    if (!textureCache[texturePath]) {
+        textureCache[texturePath] = textureLoader.load(texturePath);
+        const tex = textureCache[texturePath];
+        tex.wrapS = THREE.RepeatWrapping;
+        tex.wrapT = THREE.RepeatWrapping;
+        tex.repeat.set(TEXTURE_REPEAT, TEXTURE_REPEAT);
+    }
+    
+    return textureCache[texturePath];
+}
+
+// =============================================
+// === BUILDING INFO UI - SHOWS CLICKED BUILDING ===
+// =============================================
+// Create info panel in top-left corner
+const infoPanel = document.createElement('div');
+infoPanel.style.position = 'absolute';
+infoPanel.style.top = '20px';
+infoPanel.style.left = '20px';
+infoPanel.style.backgroundColor = 'rgba(0, 0, 0, 0.85)';
+infoPanel.style.color = 'white';
+infoPanel.style.padding = '20px 25px';
+infoPanel.style.borderRadius = '10px';
+infoPanel.style.fontFamily = 'Arial, sans-serif';
+infoPanel.style.fontSize = '16px';
+infoPanel.style.fontWeight = 'bold';
+infoPanel.style.boxShadow = '0 8px 16px rgba(0, 0, 0, 0.4)';
+infoPanel.style.borderLeft = '6px solid #4a90e2';
+infoPanel.style.zIndex = '1000';
+infoPanel.style.backdropFilter = 'blur(5px)';
+infoPanel.style.border = '1px solid rgba(255, 255, 255, 0.2)';
+infoPanel.style.minWidth = '280px';
+infoPanel.innerHTML = `
+    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+        <span style="font-size: 28px;">🏢</span>
+        <span style="font-size: 20px; color: #4a90e2; text-shadow: 0 0 10px rgba(74,144,226,0.3);">No Building Selected</span>
+    </div>
+    <div style="font-size: 14px; color: #ccc; font-weight: normal; margin-top: 5px;">
+        Click on any building to see details
+    </div>
+`;
+document.body.appendChild(infoPanel);
+
+// Store the original emissive colors to restore them
+const originalEmissiveMap = new WeakMap();
+// =============================================
+
 // --- Ground Plane ---
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), new THREE.MeshStandardMaterial({ color: 0x66bb6a }));
 ground.position.z = -0.1;
@@ -99,7 +294,6 @@ function loadWalkways() {
                 const geometry = new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false });
                 const mesh = new THREE.Mesh(geometry, walkwayMaterial);
                 
-                // FIX: Disable castShadow to stop jagged outlines
                 mesh.castShadow = false; 
                 mesh.receiveShadow = true;
                 
@@ -122,7 +316,6 @@ function isInBounds(coords) {
     );
 }
 
-// --- UPDATED Road Logic (CLEAN RIBBONS - NO OUTLINES) ---
 function loadGeoJson(url, options) {
     fetch(url)
         .then(res => res.json())
@@ -151,7 +344,6 @@ function loadGeoJson(url, options) {
 
                     const mesh = new THREE.Mesh(geometry, options.material || roadMaterial);
                     
-                    // FIX: Disable castShadow to stop jagged outlines
                     mesh.castShadow = false; 
                     mesh.receiveShadow = true; 
                     
@@ -169,7 +361,6 @@ function loadGeoJson(url, options) {
                         const geometry = new THREE.ExtrudeGeometry(shape, options.extrudeSettings);
                         const mesh = new THREE.Mesh(geometry, options.material);
                         
-                        // FIX: Disable castShadow for flat polygon surfaces like parking lots
                         mesh.castShadow = false;
                         mesh.receiveShadow = true;
 
@@ -181,7 +372,7 @@ function loadGeoJson(url, options) {
         });
 }
 
-// --- Building Logic (3x Taller) ---
+// --- Building Logic with Textures and Names ---
 function loadSplitBuildings() {
     const buildingFiles = [];
     for (let i = 1; i <= 114; i++) {
@@ -214,14 +405,33 @@ function loadSplitBuildings() {
                                 const height = (Number(feature.properties?.estimated_height) || 10) * 3;
                                 const extrudeSettings = { depth: height, bevelEnabled: false };
 
-                                const matDesc = buildingMaterials[buildingMaterialCursor % buildingMaterials.length];
+                                // Get building ID from filename
+                                const buildingId = fileName.replace(/^building_/, '').replace(/\.geojson$/, '');
+                                
+                                // Check if this building has a texture assigned
+                                const texture = getTextureForBuilding(buildingId);
+                                
+                                let material;
+                                if (texture) {
+                                    material = new THREE.MeshStandardMaterial({
+                                        map: texture.clone(),
+                                        roughness: TEXTURE_ROUGHNESS,
+                                        metalness: TEXTURE_METALNESS
+                                    });
+                                } else {
+                                    const matDesc = buildingMaterials[buildingMaterialCursor % buildingMaterials.length];
+                                    material = matDesc.material.clone();
+                                }
+                                
                                 buildingMaterialCursor++;
-                                const material = matDesc.material.clone();
 
                                 const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), material);
-                                mesh.userData.fileName = fileName.replace(/^building_/, '').replace(/\.geojson$/, '');
+                                mesh.userData.fileName = buildingId;
+                                // THIS IS THE IMPORTANT LINE - IT USES YOUR CUSTOM BUILDING NAMES
+                                mesh.userData.buildingName = BUILDING_NAMES[buildingId] || feature.properties?.name || `Building ${buildingId}`;
+                                mesh.userData.height = height / 3;
+                                mesh.userData.hasTexture = !!texture;
                                 
-                                // BUILDINGS keep castShadow = true
                                 mesh.castShadow = true;
                                 mesh.receiveShadow = true;
                                 campusGroup.add(mesh);
@@ -238,32 +448,143 @@ function loadSplitBuildings() {
     loadBatch(0);
 }
 
-// --- Interaction (Clicking) ---
+// =============================================
+// === INTERACTION (Clicking) ===
+// =============================================
 function handlePointerClick(event) {
     const rect = renderer.domElement.getBoundingClientRect();
     pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    
     raycaster.setFromCamera(pointer, camera);
     const intersects = raycaster.intersectObjects(campusGroup.children, true);
+    
     if (intersects.length > 0) {
-        const mesh = intersects[0].object;
-        if (mesh.userData.fileName) highlightBuilding(mesh);
+        // Find the first building mesh (not ground, roads, etc.)
+        const buildingMesh = intersects.find(intersect => 
+            intersect.object.userData && intersect.object.userData.fileName
+        )?.object;
+        
+        if (buildingMesh) {
+            highlightBuilding(buildingMesh);
+            updateBuildingInfo(buildingMesh);
+        } else {
+            highlightBuilding(null);
+            updateBuildingInfo(null);
+        }
     } else {
         highlightBuilding(null);
+        updateBuildingInfo(null);
     }
 }
 
 function highlightBuilding(mesh) {
-    if (highlightedBuilding && highlightedBuilding.material?.emissive) highlightedBuilding.material.emissive.setHex(0x000000);
-    if (mesh?.material?.emissive) {
-        mesh.material.emissive.setHex(0x1a304c);
-        highlightedBuilding = mesh;
-    } else {
+    // Reset previous highlight
+    if (highlightedBuilding) {
+        if (highlightedBuilding.material) {
+            if (Array.isArray(highlightedBuilding.material)) {
+                highlightedBuilding.material.forEach(mat => {
+                    if (mat.emissive) {
+                        mat.emissive.setHex(originalEmissiveMap.get(mat) || 0x000000);
+                    }
+                });
+            } else {
+                if (highlightedBuilding.material.emissive) {
+                    highlightedBuilding.material.emissive.setHex(originalEmissiveMap.get(highlightedBuilding.material) || 0x000000);
+                }
+            }
+        }
         highlightedBuilding = null;
+    }
+    
+    // Apply new highlight
+    if (mesh && mesh.material) {
+        if (Array.isArray(mesh.material)) {
+            mesh.material.forEach(mat => {
+                if (mat.emissive && !originalEmissiveMap.has(mat)) {
+                    originalEmissiveMap.set(mat, mat.emissive.getHex());
+                }
+                if (mat.emissive) {
+                    mat.emissive.setHex(0x1a304c);
+                }
+            });
+        } else {
+            if (mesh.material.emissive && !originalEmissiveMap.has(mesh.material)) {
+                originalEmissiveMap.set(mesh.material, mesh.material.emissive.getHex());
+            }
+            if (mesh.material.emissive) {
+                mesh.material.emissive.setHex(0x1a304c);
+            }
+        }
+        highlightedBuilding = mesh;
     }
 }
 
-renderer.domElement.addEventListener('pointerdown', handlePointerClick);
+function updateBuildingInfo(mesh) {
+    if (!mesh) {
+        infoPanel.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 10px;">
+                <span style="font-size: 28px;">🏢</span>
+                <span style="font-size: 20px; color: #4a90e2; text-shadow: 0 0 10px rgba(74,144,226,0.3);">No Building Selected</span>
+            </div>
+            <div style="font-size: 14px; color: #ccc; font-weight: normal; margin-top: 5px;">
+                Click on any building to see details
+            </div>
+        `;
+        infoPanel.style.borderLeftColor = '#4a90e2';
+        return;
+    }
+    
+    const buildingId = mesh.userData.fileName || 'Unknown';
+    const buildingName = mesh.userData.buildingName || `Building ${buildingId}`;
+    const height = mesh.userData.height || 'Unknown';
+    const hasTexture = mesh.userData.hasTexture ? 'Yes' : 'No';
+    
+    // Get material color if available
+    let colorInfo = 'N/A';
+    if (mesh.material) {
+        if (Array.isArray(mesh.material) && mesh.material[0]?.color) {
+            const color = mesh.material[0].color;
+            colorInfo = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+        } else if (mesh.material.color) {
+            const color = mesh.material.color;
+            colorInfo = `rgb(${Math.round(color.r * 255)}, ${Math.round(color.g * 255)}, ${Math.round(color.b * 255)})`;
+        }
+    }
+    
+    const now = new Date();
+    const timeString = now.toLocaleTimeString();
+    
+    infoPanel.innerHTML = `
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 15px;">
+            <span style="font-size: 32px;">🏢</span>
+            <span style="font-size: 22px; color: #4a90e2; font-weight: bold; text-shadow: 0 0 10px rgba(74,144,226,0.3);">${buildingName}</span>
+        </div>
+        <div style="margin-top: 10px;">
+            <div style="display: grid; grid-template-columns: 110px 1fr; gap: 12px; font-size: 15px;">
+                <span style="color: #aaa;">Building ID:</span>
+                <span style="color: white; font-weight: 600; background: rgba(255,255,255,0.1); padding: 2px 8px; border-radius: 4px;">${buildingId}</span>
+                
+                <span style="color: #aaa;">Height:</span>
+                <span style="color: white; font-weight: 600;">${height}m</span>
+                
+                <span style="color: #aaa;">Texture:</span>
+                <span style="color: white; font-weight: 600; ${hasTexture === 'Yes' ? 'color: #4CAF50;' : ''}">${hasTexture}</span>
+                
+                <span style="color: #aaa;">Color:</span>
+                <span style="color: white; font-weight: 600;">${colorInfo}</span>
+                
+                <span style="color: #aaa;">Selected:</span>
+                <span style="color: white; font-weight: 600;">${timeString}</span>
+            </div>
+        </div>
+    `;
+    
+    infoPanel.style.borderLeftColor = hasTexture === 'Yes' ? '#4CAF50' : '#4a90e2';
+}
+
+renderer.domElement.addEventListener('click', handlePointerClick);
+// =============================================
 
 function animate(currentTime) {
     requestAnimationFrame(animate);
