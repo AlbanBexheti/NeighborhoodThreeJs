@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createMaterials } from './src/materials.js';
 import { BuildingInfoPanel } from './src/buildingInfoPanel.js';
+import { addTrees, addCustomTrees } from './src/trees/trees.js';
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -62,16 +63,133 @@ let buildingMaterialCursor = 0;
 // --- Initialize Materials ---
 const { walkwayMaterial, roadMaterial, buildingMaterials } = createMaterials();
 
+
 // =============================================
-// === TEXTURE CONFIGURATION - EDIT THIS ===
+// === TEXTURE CONFIGURATION - RANDOM DISTRIBUTION ===
 // =============================================
 const BUILDING_TEXTURES = {
-    '1': 'textures/Glass_Facade001_2K-JPG/Glass_Facade001_2K_BaseColor.jpg',
-    '5': 'textures/plastered_wall_05_2k_blend/plastered_wall_05_diff_2k.jpg',
-    '10': 'textures/concrete_pavers_2k_blend/concrete_pavers_diff_2k.jpg',
-    '96': 'textures/others_0027_1k_48eRVz/rectorate_txt_1k.jpg',
-    '97': 'textures/others_0027_1k_48eRVz/rectorate_txt_1k.jpg',
-    // Add more textures here as needed
+    // Red Brick Texture - 40 random buildings
+    '1': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '7': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '15': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '23': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '31': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '42': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '56': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '64': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '71': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '83': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '92': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '5': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '18': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '27': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '35': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '44': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '52': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '63': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '77': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '85': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '94': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '9': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '21': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '33': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '47': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '58': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '69': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '74': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '86': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '95': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '102': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '12': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '25': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '38': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '49': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '61': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '72': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '81': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '93': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '104': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+    '111': 'textures/red_brick_1k/textures/red_brick_diff_1k.jpg',
+
+    // Stone Brick Texture - 40 random buildings
+    '2': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '4': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '16': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '24': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '36': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '48': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '53': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '65': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '76': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '87': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '98': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '8': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '19': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '29': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '41': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '54': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '62': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '73': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '84': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '96': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '105': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '11': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '22': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '34': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '46': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '59': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '68': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '78': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '89': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '99': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '107': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '13': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '26': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '39': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '51': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '66': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '75': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '88': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '97': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '106': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+    '113': 'textures/stone_brick_wall_001_1k/textures/stone_brick_wall_001_diff_1k.jpg',
+
+    // Patterned Brick Texture - 34 random buildings
+    '3': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '6': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '14': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '28': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '37': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '45': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '55': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '67': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '79': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '82': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '91': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '101': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '109': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '10': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '20': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '32': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '43': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '57': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '70': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '80': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '90': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '100': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '108': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '112': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '17': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '30': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '40': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '50': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '60': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '69': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '77': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '86': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '95': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '103': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
+    '114': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg'
 };
 
 // =============================================
@@ -634,12 +752,17 @@ loadWalkways();
 loadGeoJson('data/osm_roads.geojson', { material: roadMaterial });
 loadSplitBuildings();
 
-const LOCAL_TREE_URL = 'models/jacaranda_tree_1k.gltf/jacaranda_tree_1k.gltf';
-gltfLoader.load(LOCAL_TREE_URL, (gltf) => {
-    const tree = gltf.scene;
-    tree.scale.setScalar(3);
-    tree.position.set(180, 80, 0);
-    campusGroup.add(tree);
-}, undefined, () => console.warn('Tree model not found.'));
+// === ADD TREES ===
+addTrees(campusGroup);
+addCustomTrees(campusGroup);
+// =================
+
+//const LOCAL_TREE_URL = 'models/jacaranda_tree_1k.gltf/jacaranda_tree_1k.gltf';
+//gltfLoader.load(LOCAL_TREE_URL, (gltf) => {
+//    const tree = gltf.scene;
+//    tree.scale.setScalar(3);
+//    tree.position.set(180, 80, 0);
+//    campusGroup.add(tree);
+//}, undefined, () => console.warn('Tree model not found.'));
 
 animate(0);
