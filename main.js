@@ -2,8 +2,10 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { createMaterials } from './src/materials.js';
-import { BuildingInfoPanel } from './src/buildingInfoPanel.js';
-import { addTrees, addCustomTrees } from './src/trees/trees.js';
+
+const keys = { w: false, a: false, s: false, d: false };
+window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
+window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -184,10 +186,6 @@ const BUILDING_TEXTURES = {
     '40': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
     '50': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
     '60': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
-    '69': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
-    '77': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
-    '86': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
-    '95': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
     '103': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg',
     '114': 'textures/patterned_brick_wall_03_1k/textures/patterned_brick_wall_03_diff_1k.jpg'
 };
@@ -406,6 +404,23 @@ document.body.appendChild(infoPanel);
 const originalEmissiveMap = new WeakMap();
 // =============================================
 
+// =============================================
+// === SIMPLE GAME-STYLE ROAD MATERIALS ===
+// =============================================
+const simpleRoadMaterial = new THREE.MeshStandardMaterial({
+    color: 0x2d2d2d, // Dark gray asphalt
+    roughness: 0.85,
+    metalness: 0.1,
+    side: THREE.DoubleSide
+});
+
+const roadLineMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffdd00, // Yellow center line
+    side: THREE.DoubleSide
+});
+// =============================================
+
+
 // --- Ground Plane ---
 const ground = new THREE.Mesh(new THREE.PlaneGeometry(3000, 3000), grassMaterial);
 ground.position.z = -0.1;
@@ -466,7 +481,7 @@ function isInBounds(coords) {
 }
 
 // =============================================
-// === LOAD ROADS WITH TEXTURE - ONLY ONE LINE CHANGED ===
+// === LOAD ROADS - SIMPLE GAME STYLE ===
 // =============================================
 function loadGeoJson(url, options) {
     fetch(url)
@@ -483,26 +498,67 @@ function loadGeoJson(url, options) {
                     });
                     const curve = new THREE.CatmullRomCurve3(curvePoints);
                     
+                    // Create road surface
                     const roadWidth = 2.5;
                     const shape = new THREE.Shape();
                     shape.moveTo(0, -roadWidth / 2);
                     shape.lineTo(0, roadWidth / 2);
 
                     const geometry = new THREE.ExtrudeGeometry(shape, {
-                        steps: 100,
+                        steps: 200,
                         bevelEnabled: false,
                         extrudePath: curve
                     });
 
-                    // *** THIS IS THE ONLY LINE CHANGED ***
-                    const mesh = new THREE.Mesh(geometry, texturedRoadMaterial);
-                    // **************************************
+                    const roadMesh = new THREE.Mesh(geometry, simpleRoadMaterial);
+                    roadMesh.castShadow = false; 
+                    roadMesh.receiveShadow = true; 
+                    roadMesh.position.z = 0.02; 
+                    campusGroup.add(roadMesh);
                     
-                    mesh.castShadow = false; 
-                    mesh.receiveShadow = true; 
+                    // Create dashed center line
+                    const lineWidth = 0.15;
+                    const dashLength = 1.5;  // Length of each dash
+                    const gapLength = 1.0;   // Gap between dashes
+                    const totalDashUnit = dashLength + gapLength;
                     
-                    mesh.position.z = 0.02; 
-                    campusGroup.add(mesh);
+                    // Get total curve length
+                    const curveLength = curve.getLength();
+                    const numDashes = Math.floor(curveLength / totalDashUnit);
+                    
+                    // Create each dash
+                    for (let i = 0; i < numDashes; i++) {
+                        const dashStart = (i * totalDashUnit) / curveLength;
+                        const dashEnd = (i * totalDashUnit + dashLength) / curveLength;
+                        
+                        // Make sure we don't go past the end
+                        if (dashEnd > 1.0) break;
+                        
+                        // Get points for this dash segment
+                        const dashPoints = [];
+                        const dashSteps = 20; // Steps per dash for smoothness
+                        for (let j = 0; j <= dashSteps; j++) {
+                            const t = dashStart + (dashEnd - dashStart) * (j / dashSteps);
+                            dashPoints.push(curve.getPoint(t));
+                        }
+                        
+                        // Create curve for this dash
+                        const dashCurve = new THREE.CatmullRomCurve3(dashPoints);
+                        
+                        const lineShape = new THREE.Shape();
+                        lineShape.moveTo(0, -lineWidth / 2);
+                        lineShape.lineTo(0, lineWidth / 2);
+                        
+                        const lineGeometry = new THREE.ExtrudeGeometry(lineShape, {
+                            steps: dashSteps,
+                            bevelEnabled: false,
+                            extrudePath: dashCurve
+                        });
+                        
+                        const lineMesh = new THREE.Mesh(lineGeometry, roadLineMaterial);
+                        lineMesh.position.z = 0.03; // Slightly above road
+                        campusGroup.add(lineMesh);
+                    }
                     
                 } else if (feature.geometry.type === 'Polygon') {
                     const polygons = [feature.geometry.coordinates];
@@ -735,8 +791,40 @@ function updateBuildingInfo(mesh) {
 renderer.domElement.addEventListener('click', handlePointerClick);
 // =============================================
 
+const moveSpeed = 2.0;
+
+function updateMovement() {
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    forward.y = 0; // Keep movement on the ground plane
+    forward.normalize();
+
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, camera.up);
+
+    if (keys.w) {
+        camera.position.addScaledVector(forward, moveSpeed);
+        controls.target.addScaledVector(forward, moveSpeed);
+    }
+    if (keys.s) {
+        camera.position.addScaledVector(forward, -moveSpeed);
+        controls.target.addScaledVector(forward, -moveSpeed);
+    }
+    if (keys.a) {
+        camera.position.addScaledVector(right, -moveSpeed);
+        controls.target.addScaledVector(right, -moveSpeed);
+    }
+    if (keys.d) {
+        camera.position.addScaledVector(right, moveSpeed);
+        controls.target.addScaledVector(right, moveSpeed);
+    }
+}
+
+// =============================================
+
 function animate(currentTime) {
     requestAnimationFrame(animate);
+    updateMovement();
     controls.update();
     renderer.render(scene, camera);
 }
@@ -752,10 +840,6 @@ loadWalkways();
 loadGeoJson('data/osm_roads.geojson', { material: roadMaterial });
 loadSplitBuildings();
 
-// === ADD TREES ===
-addTrees(campusGroup);
-addCustomTrees(campusGroup);
-// =================
 
 //const LOCAL_TREE_URL = 'models/jacaranda_tree_1k.gltf/jacaranda_tree_1k.gltf';
 //gltfLoader.load(LOCAL_TREE_URL, (gltf) => {
