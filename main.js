@@ -7,12 +7,12 @@ const keys = { w: false, a: false, s: false, d: false };
 window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; });
 window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; });
 
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true });
 renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;   
-renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
+renderer.shadowMap.type = THREE.BasicShadowMap;
+renderer.toneMapping = THREE.NoToneMapping;
 document.body.appendChild(renderer.domElement);
 
 // --- Scene Setup ---
@@ -42,12 +42,12 @@ scene.add(hemiLight);
 const dirLight = new THREE.DirectionalLight(0xffffff, 1.0);
 dirLight.position.set(200, 200, 100);
 dirLight.castShadow = true;
-dirLight.shadow.camera.top = 500;
-dirLight.shadow.camera.bottom = -500;
-dirLight.shadow.camera.left = -500;
-dirLight.shadow.camera.right = 500;
-dirLight.shadow.mapSize.width = 2048;
-dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.top = 200;
+dirLight.shadow.camera.bottom = -200;
+dirLight.shadow.camera.left = -200;
+dirLight.shadow.camera.right = 200;
+dirLight.shadow.mapSize.width = 1024;
+dirLight.shadow.mapSize.height = 1024;
 scene.add(dirLight);
 
 const ambientLight = new THREE.AmbientLight(0x404040, 0.5);
@@ -414,9 +414,10 @@ const simpleRoadMaterial = new THREE.MeshStandardMaterial({
     side: THREE.DoubleSide
 });
 
-const roadLineMaterial = new THREE.MeshBasicMaterial({
-    color: 0xffdd00, // Yellow center line
-    side: THREE.DoubleSide
+const roadLineMaterial = new THREE.LineDashedMaterial({
+    color: 0xffdd00,
+    dashSize: 2.0,
+    gapSize: 1.5
 });
 // =============================================
 
@@ -483,6 +484,15 @@ function isInBounds(coords) {
 // =============================================
 // === LOAD ROADS - SIMPLE GAME STYLE ===
 // =============================================
+// Road spine points — populated during loadGeoJson, used to keep trees off roads
+const roadSpinePoints = [];
+
+// Shared street light geometries & materials (created once, reused for every lamp)
+const sharedPoleGeom = new THREE.CylinderGeometry(0.15, 0.15, 8, 6);
+const sharedPoleMat  = new THREE.MeshLambertMaterial({ color: 0x444444 });
+const sharedBulbGeom = new THREE.SphereGeometry(0.3, 5, 5);
+const sharedBulbMat  = new THREE.MeshBasicMaterial({ color: 0xffffcc });
+
 function loadGeoJson(url, options) {
     fetch(url)
         .then(res => res.json())
@@ -498,111 +508,63 @@ function loadGeoJson(url, options) {
                     });
                     const curve = new THREE.CatmullRomCurve3(curvePoints);
                     
-                    // Create road surface
+                    // Create road surface — reduced steps for performance
                     const roadWidth = 2.5;
                     const shape = new THREE.Shape();
                     shape.moveTo(0, -roadWidth / 2);
                     shape.lineTo(0, roadWidth / 2);
 
                     const geometry = new THREE.ExtrudeGeometry(shape, {
-                        steps: 200,
+                        steps: 50,
                         bevelEnabled: false,
                         extrudePath: curve
                     });
 
                     const roadMesh = new THREE.Mesh(geometry, simpleRoadMaterial);
-                    roadMesh.castShadow = false; 
-                    roadMesh.receiveShadow = true; 
-                    roadMesh.position.z = 0.02; 
+                    roadMesh.castShadow = false;
+                    roadMesh.receiveShadow = false;
+                    roadMesh.position.z = 0.02;
                     campusGroup.add(roadMesh);
-                    
-                    // Create dashed center line
-                    const lineWidth = 0.15;
-                    const dashLength = 1.5;  // Length of each dash
-                    const gapLength = 1.0;   // Gap between dashes
-                    const totalDashUnit = dashLength + gapLength;
-                    
-                    // Get total curve length
+
+                    // Sample road spine for tree exclusion (one point every ~5 units)
                     const curveLength = curve.getLength();
-                    const numDashes = Math.floor(curveLength / totalDashUnit);
-                    
-                    // Create each dash
-                    for (let i = 0; i < numDashes; i++) {
-                        const dashStart = (i * totalDashUnit) / curveLength;
-                        const dashEnd = (i * totalDashUnit + dashLength) / curveLength;
-                        
-                        // Make sure we don't go past the end
-                        if (dashEnd > 1.0) break;
-                        
-                        // Get points for this dash segment
-                        const dashPoints = [];
-                        const dashSteps = 20; // Steps per dash for smoothness
-                        for (let j = 0; j <= dashSteps; j++) {
-                            const t = dashStart + (dashEnd - dashStart) * (j / dashSteps);
-                            dashPoints.push(curve.getPoint(t));
-                        }
-                        
-                        // Create curve for this dash
-                        const dashCurve = new THREE.CatmullRomCurve3(dashPoints);
-                        
-                        const lineShape = new THREE.Shape();
-                        lineShape.moveTo(0, -lineWidth / 2);
-                        lineShape.lineTo(0, lineWidth / 2);
-                        
-                        const lineGeometry = new THREE.ExtrudeGeometry(lineShape, {
-                            steps: dashSteps,
-                            bevelEnabled: false,
-                            extrudePath: dashCurve
-                        });
-                        
-                        const lineMesh = new THREE.Mesh(lineGeometry, roadLineMaterial);
-                        lineMesh.position.z = 0.03; // Slightly above road
-                        campusGroup.add(lineMesh);
+                    const spineCount = Math.max(2, Math.floor(curveLength / 5));
+                    for (let si = 0; si <= spineCount; si++) {
+                        const sp = curve.getPoint(si / spineCount);
+                        roadSpinePoints.push({ x: sp.x, y: sp.y });
                     }
+
+                    // Center line: single LineSegments — zero geometry overhead
+                    const linePoints = curve.getPoints(40);
+                    const linePosArray = [];
+                    linePoints.forEach(p => linePosArray.push(p.x, p.y, 0.03));
+                    const lineGeo = new THREE.BufferGeometry();
+                    lineGeo.setAttribute('position', new THREE.Float32BufferAttribute(linePosArray, 3));
+                    const centerLine = new THREE.Line(lineGeo, roadLineMaterial);
+                    centerLine.computeLineDistances();
+                    campusGroup.add(centerLine);
                     
-                    // ADD STREET LIGHTS ALONG THIS ROAD
-                    const numLights = Math.floor(curveLength / 30); // One every 30 units
-                    for (let i = 0; i <= numLights; i++) {
-                        const t = i / numLights;
-                        if (t > 1) continue;
-                        
-                        const point = curve.getPoint(t);
-                        const side = (i % 2 === 0) ? 1 : -1;
-                        const offset = 4;
-                        
-                        const tangent = curve.getTangent(t);
-                        const perpendicular = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
-                        const lightPos = point.clone().add(perpendicular.multiplyScalar(side * offset));
-                        
-                        // Create simple street light
-                        const lightGroup = new THREE.Group();
-                        
-                        // Pole
-                        const poleGeom = new THREE.CylinderGeometry(0.15, 0.15, 8, 8);
-                        const poleMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
-                        const pole = new THREE.Mesh(poleGeom, poleMat);
-                        pole.position.z = 4;
-                        pole.castShadow = true;
-                        lightGroup.add(pole);
-                        
-                        // Light bulb
-                        const bulbGeom = new THREE.SphereGeometry(0.3, 8, 8);
-                        const bulbMat = new THREE.MeshStandardMaterial({ 
-                            color: 0xffffcc, 
-                            emissive: 0xffffaa,
-                            emissiveIntensity: 1.5
-                        });
-                        const bulb = new THREE.Mesh(bulbGeom, bulbMat);
-                        bulb.position.z = 8;
-                        lightGroup.add(bulb);
-                        
-                        // Point light
-                        const pointLight = new THREE.PointLight(0xffffcc, 1.0, 25);
-                        pointLight.position.z = 8;
-                        lightGroup.add(pointLight);
-                        
-                        lightGroup.position.set(lightPos.x, lightPos.y, 0);
-                        campusGroup.add(lightGroup);
+                    // Street lights — shared geometries/materials, no PointLights, one per 60u
+                    if (curveLength > 0) {
+                        const numLights = Math.max(1, Math.floor(curveLength / 60));
+                        for (let li = 0; li <= numLights; li++) {
+                            const t = li / numLights;
+                            if (t > 1 || isNaN(t)) continue;
+                            const point = curve.getPoint(t);
+                            const side = (li % 2 === 0) ? 1 : -1;
+                            const tangent = curve.getTangent(t);
+                            const perp = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+                            const lightPos = point.clone().add(perp.multiplyScalar(side * 4));
+
+                            const pole = new THREE.Mesh(sharedPoleGeom, sharedPoleMat);
+                            pole.rotation.x = Math.PI / 2;
+                            pole.position.set(lightPos.x, lightPos.y, 4);
+                            campusGroup.add(pole);
+
+                            const bulb = new THREE.Mesh(sharedBulbGeom, sharedBulbMat);
+                            bulb.position.set(lightPos.x, lightPos.y, 8);
+                            campusGroup.add(bulb);
+                        }
                     }
                     
                 } else if (feature.geometry.type === 'Polygon') {
@@ -631,6 +593,7 @@ function loadGeoJson(url, options) {
 
 // --- Building Logic with Textures and Names ---
 function loadSplitBuildings() {
+    return new Promise(resolveAll => {
     const buildingFiles = [];
     for (let i = 1; i <= 114; i++) {
         buildingFiles.push(`building_${i}.geojson`);
@@ -654,10 +617,15 @@ function loadSplitBuildings() {
                             const polygons = feature.geometry.type === 'Polygon' ? [feature.geometry.coordinates] : feature.geometry.coordinates;
                             polygons.forEach(polygon => {
                                 const shape = new THREE.Shape();
+                                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
                                 polygon[0].forEach((coord, index) => {
                                     const [x, y] = projectCoord(coord);
                                     index === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y);
+                                    if (x < minX) minX = x; if (x > maxX) maxX = x;
+                                    if (y < minY) minY = y; if (y > maxY) maxY = y;
                                 });
+                                // Register footprint immediately so tree placement can use it
+                                buildingBoxes.push({ minX, maxX, minY, maxY });
 
                                 const height = (Number(feature.properties?.estimated_height) || 10) * 4;
                                 const extrudeSettings = { depth: height, bevelEnabled: false };
@@ -687,7 +655,7 @@ function loadSplitBuildings() {
                                 mesh.userData.hasTexture = !!texture;
                                 
                                 mesh.castShadow = true;
-                                mesh.receiveShadow = true;
+                                mesh.receiveShadow = false;
                                 campusGroup.add(mesh);
                             });
                         });
@@ -696,96 +664,56 @@ function loadSplitBuildings() {
             );
         }
         Promise.all(promises).then(() => {
-            if (loadedCount < buildingFiles.length) setTimeout(() => loadBatch(endIndex), 50);
+            if (loadedCount < buildingFiles.length) {
+                setTimeout(() => loadBatch(endIndex), 50);
+            } else {
+                resolveAll();
+            }
         });
     }
     loadBatch(0);
+    }); // end Promise
 }
 
 // =============================================
 // === TREE GENERATION ===
 // =============================================
+// Shared tree geometries & materials — created ONCE, every tree instance reuses them
+const _trunkGeomA  = new THREE.CylinderGeometry(0.8, 1.0, 6, 6);
+const _trunkGeomB  = new THREE.CylinderGeometry(0.5, 0.8, 5, 5);
+const _trunkMat    = new THREE.MeshLambertMaterial({ color: 0x4d2902 });
+const _leavesMat   = new THREE.MeshLambertMaterial({ color: 0x2d4c1e });
+const _leavesMat2  = new THREE.MeshLambertMaterial({ color: 0x3a5f2e });
+const _coneGeomA   = new THREE.ConeGeometry(4.5, 6, 6);
+const _coneGeomB   = new THREE.ConeGeometry(3.5, 5, 6);
+const _coneGeomC   = new THREE.ConeGeometry(2.5, 4.5, 6);
+const _sphereGeom  = new THREE.SphereGeometry(3.5, 6, 5);
+
 function createTree() {
-    const treeGroup = new THREE.Group();
-
-    // Trunk - bigger and taller, rotated to align with Z-axis (vertical)
-    const trunkGeom = new THREE.CylinderGeometry(0.8, 1.0, 6, 8);
-    const trunkMat = new THREE.MeshStandardMaterial({ 
-        color: 0x4d2902,
-        roughness: 0.9,
-        metalness: 0.1
-    });
-    const trunk = new THREE.Mesh(trunkGeom, trunkMat);
-    trunk.castShadow = true;
-    trunk.receiveShadow = true;
-    
-    // Rotate cylinder 90 degrees to align with Z axis (vertical in your rotated plane)
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(_trunkGeomA, _trunkMat);
     trunk.rotation.x = Math.PI / 2;
-    trunk.position.z = 3; 
-    treeGroup.add(trunk);
-
-    // Foliage (Leaves) - Multiple layers, also rotated
-    const leavesMat = new THREE.MeshStandardMaterial({ 
-        color: 0x2d4c1e,
-        roughness: 0.8,
-        metalness: 0.0
-    });
-    
-    // Bottom layer
-    const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(4.5, 6, 8), leavesMat);
-    leaves1.rotation.x = Math.PI / 2;
-    leaves1.position.z = 6;
-    leaves1.castShadow = true;
-    leaves1.receiveShadow = true;
-    treeGroup.add(leaves1);
-    
-    // Middle layer
-    const leaves2 = new THREE.Mesh(new THREE.ConeGeometry(3.5, 5, 8), leavesMat);
-    leaves2.rotation.x = Math.PI / 2;
-    leaves2.position.z = 9;
-    leaves2.castShadow = true;
-    leaves2.receiveShadow = true;
-    treeGroup.add(leaves2);
-    
-    // Top layer
-    const leaves3 = new THREE.Mesh(new THREE.ConeGeometry(2.5, 4.5, 8), leavesMat);
-    leaves3.rotation.x = Math.PI / 2;
-    leaves3.position.z = 12;
-    leaves3.castShadow = true;
-    leaves3.receiveShadow = true;
-    treeGroup.add(leaves3);
-
-    return treeGroup;
+    trunk.position.z = 3;
+    g.add(trunk);
+    const l1 = new THREE.Mesh(_coneGeomA, _leavesMat);
+    l1.rotation.x = Math.PI / 2; l1.position.z = 6; g.add(l1);
+    const l2 = new THREE.Mesh(_coneGeomB, _leavesMat);
+    l2.rotation.x = Math.PI / 2; l2.position.z = 9; g.add(l2);
+    const l3 = new THREE.Mesh(_coneGeomC, _leavesMat);
+    l3.rotation.x = Math.PI / 2; l3.position.z = 12; g.add(l3);
+    return g;
 }
 
 function createSimpleTree() {
-    const treeGroup = new THREE.Group();
-
-    // Simple trunk - rotated to align with Z-axis
-    const trunkGeom = new THREE.CylinderGeometry(0.5, 0.8, 5, 6);
-    const trunkMat = new THREE.MeshStandardMaterial({ 
-        color: 0x563f2e,
-        roughness: 0.95
-    });
-    const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+    const g = new THREE.Group();
+    const trunk = new THREE.Mesh(_trunkGeomB, _trunkMat);
     trunk.rotation.x = Math.PI / 2;
     trunk.position.z = 2.5;
-    trunk.castShadow = true;
-    treeGroup.add(trunk);
-
-    // Simple spherical foliage (spheres don't need rotation)
-    const leavesGeom = new THREE.SphereGeometry(3.5, 8, 8);
-    const leavesMat = new THREE.MeshStandardMaterial({ 
-        color: 0x3a5f2e,
-        roughness: 0.9
-    });
-    const leaves = new THREE.Mesh(leavesGeom, leavesMat);
+    g.add(trunk);
+    const leaves = new THREE.Mesh(_sphereGeom, _leavesMat2);
     leaves.position.z = 6.5;
-    leaves.castShadow = true;
-    leaves.receiveShadow = true;
-    treeGroup.add(leaves);
-
-    return treeGroup;
+    g.add(leaves);
+    return g;
 }
 
 function loadTrees() {
@@ -804,19 +732,13 @@ function loadTrees() {
                         lat >= BOUNDS.minLat && lat <= BOUNDS.maxLat) {
                         
                         const [x, y] = projectCoord([lon, lat]);
+
+                        if (isTooClose(x, y)) return;
                         
-                        // Randomly choose between cone tree and spherical tree
                         const tree = Math.random() > 0.5 ? createTree() : createSimpleTree();
-                        
-                        tree.position.set(x, y, 0); // z=0 so tree sits on ground plane
-                        
-                        // Bigger trees with more size variation
-                        const scale = 1.2 + Math.random() * 0.8; // Random size 1.2-2.0
-                        tree.scale.setScalar(scale);
-                        
-                        // Only rotate around Z axis (vertical axis in your coordinate system)
+                        tree.position.set(x, y, 0);
+                        tree.scale.setScalar(1.2 + Math.random() * 0.8);
                         tree.rotation.z = Math.random() * Math.PI * 2;
-                        
                         campusGroup.add(tree);
                         treesAdded++;
                     }
@@ -827,64 +749,61 @@ function loadTrees() {
         })
         .catch(err => {
             console.log("Tree data not found, generating random trees instead...");
-            generateRandomTrees(300); // More trees!
+            generateRandomTrees(150);
         });
 }
 
-// Store building positions for tree clustering
-let buildingPositions = [];
+// Building bounding boxes — populated when generateRandomTrees runs
+let buildingBoxes = [];
 
-// Alternative: Generate random trees with clustering near buildings
-function generateRandomTrees(count = 300) {
-    console.log(`Generating ${count} random trees...`);
-    
-    // Collect building positions for clustering
-    campusGroup.children.forEach(child => {
-        if (child.userData && child.userData.fileName) {
-            const box = new THREE.Box3().setFromObject(child);
-            const center = new THREE.Vector3();
-            box.getCenter(center);
-            buildingPositions.push({
-                x: center.x,
-                y: center.y,
-                radius: Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2
-            });
+// Returns true if (x, y) is too close to any building or road
+function isTooClose(x, y) {
+    const MIN_BUILDING_DIST = 4;  // min units from building edge
+    const MIN_ROAD_DIST     = 5;  // min units from road center
+
+    // Check buildings — use expanded 2D bounding box
+    for (let i = 0; i < buildingBoxes.length; i++) {
+        const b = buildingBoxes[i];
+        if (x > b.minX - MIN_BUILDING_DIST && x < b.maxX + MIN_BUILDING_DIST &&
+            y > b.minY - MIN_BUILDING_DIST && y < b.maxY + MIN_BUILDING_DIST) {
+            return true;
         }
-    });
-    
-    for (let i = 0; i < count; i++) {
-        let x, y;
-        
-        // 70% of trees near buildings, 30% random
-        if (Math.random() < 0.7 && buildingPositions.length > 0) {
-            // Place near a random building
-            const building = buildingPositions[Math.floor(Math.random() * buildingPositions.length)];
-            const angle = Math.random() * Math.PI * 2;
-            const distance = building.radius + 5 + Math.random() * 15; // 5-20 units from building
-            
-            x = building.x + Math.cos(angle) * distance;
-            y = building.y + Math.sin(angle) * distance;
-        } else {
-            // Random position within bounds
-            const lon = BOUNDS.minLon + Math.random() * (BOUNDS.maxLon - BOUNDS.minLon);
-            const lat = BOUNDS.minLat + Math.random() * (BOUNDS.maxLat - BOUNDS.minLat);
-            [x, y] = projectCoord([lon, lat]);
-        }
-        
-        const tree = Math.random() > 0.5 ? createTree() : createSimpleTree();
-        tree.position.set(x, y, 0); // z=0 so base is on ground
-        
-        // Bigger trees with more variation
-        const scale = 1.2 + Math.random() * 0.8; // 1.2 to 2.0x scale
-        tree.scale.setScalar(scale);
-        
-        // Only rotate around Z axis
-        tree.rotation.z = Math.random() * Math.PI * 2;
-        
-        campusGroup.add(tree);
     }
-    
-    console.log(`${count} trees generated on campus`);
+
+    // Check road spine — point-in-radius test
+    const minRoadSq = MIN_ROAD_DIST * MIN_ROAD_DIST;
+    for (let i = 0; i < roadSpinePoints.length; i++) {
+        const rp = roadSpinePoints[i];
+        const dx = x - rp.x, dy = y - rp.y;
+        if (dx * dx + dy * dy < minRoadSq) return true;
+    }
+
+    return false;
+}
+
+function generateRandomTrees(count = 150) {
+    // buildingBoxes already populated from GeoJSON during loadSplitBuildings
+    let placed = 0;
+    let attempts = 0;
+    const maxAttempts = count * 20; // give up after this many tries
+
+    while (placed < count && attempts < maxAttempts) {
+        attempts++;
+        const lon = BOUNDS.minLon + Math.random() * (BOUNDS.maxLon - BOUNDS.minLon);
+        const lat = BOUNDS.minLat + Math.random() * (BOUNDS.maxLat - BOUNDS.minLat);
+        const [x, y] = projectCoord([lon, lat]);
+
+        if (isTooClose(x, y)) continue;
+
+        const tree = Math.random() > 0.5 ? createTree() : createSimpleTree();
+        tree.position.set(x, y, 0);
+        tree.scale.setScalar(1.2 + Math.random() * 0.8);
+        tree.rotation.z = Math.random() * Math.PI * 2;
+        campusGroup.add(tree);
+        placed++;
+    }
+
+    console.log(`${placed} trees placed (${attempts} attempts)`);
 }
 // =============================================
 
@@ -1069,11 +988,7 @@ window.addEventListener('resize', () => {
 // --- Execution ---
 loadWalkways();
 loadGeoJson('data/osm_roads.geojson', { material: roadMaterial });
-loadSplitBuildings();
-
-// Delay tree generation to ensure buildings are loaded first
-setTimeout(() => {
-    loadTrees(); // Will try to load from trees.geojson, fallback to random generation
-}, 1000);
+// Trees load only after ALL buildings are done — so bbox list is complete
+loadSplitBuildings().then(() => loadTrees());
 
 animate(0);
