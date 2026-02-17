@@ -355,6 +355,81 @@ const texturedRoadMaterial = new THREE.MeshStandardMaterial({
 });
 // =============================================
 
+// =============================================
+// === BUILDING DETAIL MATERIALS ===
+// =============================================
+const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x4a4a4a });
+
+// Seeded wall tint per building ID
+function getBuildingTint(id) {
+    const tints = [0xc8b89a, 0xb5a88c, 0xd4c4a8, 0xa89880,
+                   0xbcac98, 0xc0b49a, 0xaaa090, 0xd0c0a8];
+    return tints[(parseInt(id) || 0) % tints.length];
+}
+
+// Build a canvas texture that paints windows onto the wall face
+function makeWallTexture(wallColor, height) {
+    const PX_PER_UNIT = 8;
+    const texW = 128, texH = Math.max(64, Math.min(256, Math.round(height * PX_PER_UNIT)));
+    const canvas = document.createElement('canvas');
+    canvas.width = texW; canvas.height = texH;
+    const ctx = canvas.getContext('2d');
+
+    // Wall background
+    const r = (wallColor >> 16) & 0xff;
+    const g = (wallColor >> 8)  & 0xff;
+    const b =  wallColor        & 0xff;
+    ctx.fillStyle = `rgb(${r},${g},${b})`;
+    ctx.fillRect(0, 0, texW, texH);
+
+    // Horizontal floor lines (subtle)
+    ctx.strokeStyle = `rgba(0,0,0,0.15)`;
+    ctx.lineWidth = 1;
+    const floorPx = 4 * PX_PER_UNIT;
+    for (let fy = texH - floorPx; fy > 0; fy -= floorPx) {
+        ctx.beginPath(); ctx.moveTo(0, fy); ctx.lineTo(texW, fy); ctx.stroke();
+    }
+
+    // Windows per floor
+    const winCols = 4, winPadX = texW / winCols;
+    const winW = winPadX * 0.45, winH2 = floorPx * 0.45;
+    for (let fy = texH - floorPx; fy > -floorPx; fy -= floorPx) {
+        for (let col = 0; col < winCols; col++) {
+            const wx = col * winPadX + winPadX * 0.275;
+            const wy = fy + floorPx * 0.25;
+            // Window glass
+            const lit = Math.random() > 0.2;
+            ctx.fillStyle = lit ? 'rgba(255,240,180,0.9)' : 'rgba(100,130,160,0.7)';
+            ctx.fillRect(wx, wy, winW, winH2);
+            // Window frame
+            ctx.strokeStyle = `rgba(80,70,60,0.6)`;
+            ctx.lineWidth = 1;
+            ctx.strokeRect(wx, wy, winW, winH2);
+            // Cross bar
+            ctx.beginPath();
+            ctx.moveTo(wx + winW/2, wy); ctx.lineTo(wx + winW/2, wy + winH2);
+            ctx.moveTo(wx, wy + winH2/2); ctx.lineTo(wx + winW, wy + winH2/2);
+            ctx.stroke();
+        }
+    }
+
+    const tex = new THREE.CanvasTexture(canvas);
+    tex.wrapS = THREE.RepeatWrapping;
+    tex.wrapT = THREE.ClampToEdgeWrapping;
+    tex.repeat.set(2, 1);
+    return tex;
+}
+
+// Only the roof cap is added as geometry — everything else is baked into the wall texture
+function addBuildingDetails(group, shape, height) {
+    // Roof cap — same shape extruded thin, placed at top of building
+    const roofGeo = new THREE.ExtrudeGeometry(shape, { depth: 0.5, bevelEnabled: false });
+    const roof = new THREE.Mesh(roofGeo, roofMaterial);
+    roof.position.z = height;
+    group.add(roof);
+}
+// =============================================
+
 function getTextureForBuilding(buildingId) {
     const texturePath = BUILDING_TEXTURES[buildingId];
     if (!texturePath) return null;
@@ -634,29 +709,36 @@ function loadSplitBuildings() {
                                 
                                 const texture = getTextureForBuilding(buildingId);
                                 
-                                let material;
+                                buildingMaterialCursor++;
+
+                                // Build wall material — canvas texture with painted windows
+                                const wallColor = getBuildingTint(buildingId);
+                                let wallMat;
                                 if (texture) {
-                                    material = new THREE.MeshStandardMaterial({
+                                    wallMat = new THREE.MeshStandardMaterial({
                                         map: texture.clone(),
                                         roughness: TEXTURE_ROUGHNESS,
                                         metalness: TEXTURE_METALNESS
                                     });
                                 } else {
-                                    const matDesc = buildingMaterials[buildingMaterialCursor % buildingMaterials.length];
-                                    material = matDesc.material.clone();
+                                    const wallTex = makeWallTexture(wallColor, height);
+                                    wallMat = new THREE.MeshLambertMaterial({ map: wallTex });
                                 }
-                                
-                                buildingMaterialCursor++;
 
-                                const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), material);
+                                const mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, extrudeSettings), wallMat);
                                 mesh.userData.fileName = buildingId;
                                 mesh.userData.buildingName = BUILDING_NAMES[buildingId] || feature.properties?.name || `Building ${buildingId}`;
                                 mesh.userData.height = height / 3;
                                 mesh.userData.hasTexture = !!texture;
-                                
                                 mesh.castShadow = true;
                                 mesh.receiveShadow = false;
-                                campusGroup.add(mesh);
+
+                                const bGroup = new THREE.Group();
+                                bGroup.userData.fileName = buildingId;
+                                bGroup.userData.buildingName = mesh.userData.buildingName;
+                                bGroup.add(mesh);
+                                addBuildingDetails(bGroup, shape, height);
+                                campusGroup.add(bGroup);
                             });
                         });
                         loadedCount++;
@@ -819,10 +901,20 @@ function handlePointerClick(event) {
     const intersects = raycaster.intersectObjects(campusGroup.children, true);
     
     if (intersects.length > 0) {
-        const buildingMesh = intersects.find(intersect => 
-            intersect.object.userData && intersect.object.userData.fileName
-        )?.object;
-        
+        // Walk up parent chain to find the building group/mesh with a fileName
+        let buildingMesh = null;
+        for (const intersect of intersects) {
+            let obj = intersect.object;
+            while (obj) {
+                if (obj.userData && obj.userData.fileName) {
+                    buildingMesh = obj;
+                    break;
+                }
+                obj = obj.parent;
+            }
+            if (buildingMesh) break;
+        }
+
         if (buildingMesh) {
             highlightBuilding(buildingMesh);
             updateBuildingInfo(buildingMesh);
