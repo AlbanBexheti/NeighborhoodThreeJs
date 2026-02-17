@@ -560,6 +560,51 @@ function loadGeoJson(url, options) {
                         campusGroup.add(lineMesh);
                     }
                     
+                    // ADD STREET LIGHTS ALONG THIS ROAD
+                    const numLights = Math.floor(curveLength / 30); // One every 30 units
+                    for (let i = 0; i <= numLights; i++) {
+                        const t = i / numLights;
+                        if (t > 1) continue;
+                        
+                        const point = curve.getPoint(t);
+                        const side = (i % 2 === 0) ? 1 : -1;
+                        const offset = 4;
+                        
+                        const tangent = curve.getTangent(t);
+                        const perpendicular = new THREE.Vector3(-tangent.y, tangent.x, 0).normalize();
+                        const lightPos = point.clone().add(perpendicular.multiplyScalar(side * offset));
+                        
+                        // Create simple street light
+                        const lightGroup = new THREE.Group();
+                        
+                        // Pole
+                        const poleGeom = new THREE.CylinderGeometry(0.15, 0.15, 8, 8);
+                        const poleMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
+                        const pole = new THREE.Mesh(poleGeom, poleMat);
+                        pole.position.z = 4;
+                        pole.castShadow = true;
+                        lightGroup.add(pole);
+                        
+                        // Light bulb
+                        const bulbGeom = new THREE.SphereGeometry(0.3, 8, 8);
+                        const bulbMat = new THREE.MeshStandardMaterial({ 
+                            color: 0xffffcc, 
+                            emissive: 0xffffaa,
+                            emissiveIntensity: 1.5
+                        });
+                        const bulb = new THREE.Mesh(bulbGeom, bulbMat);
+                        bulb.position.z = 8;
+                        lightGroup.add(bulb);
+                        
+                        // Point light
+                        const pointLight = new THREE.PointLight(0xffffcc, 1.0, 25);
+                        pointLight.position.z = 8;
+                        lightGroup.add(pointLight);
+                        
+                        lightGroup.position.set(lightPos.x, lightPos.y, 0);
+                        campusGroup.add(lightGroup);
+                    }
+                    
                 } else if (feature.geometry.type === 'Polygon') {
                     const polygons = [feature.geometry.coordinates];
                     polygons.forEach(polygon => {
@@ -614,7 +659,7 @@ function loadSplitBuildings() {
                                     index === 0 ? shape.moveTo(x, y) : shape.lineTo(x, y);
                                 });
 
-                                const height = (Number(feature.properties?.estimated_height) || 10) * 3;
+                                const height = (Number(feature.properties?.estimated_height) || 10) * 4;
                                 const extrudeSettings = { depth: height, bevelEnabled: false };
 
                                 const buildingId = fileName.replace(/^building_/, '').replace(/\.geojson$/, '');
@@ -656,6 +701,192 @@ function loadSplitBuildings() {
     }
     loadBatch(0);
 }
+
+// =============================================
+// === TREE GENERATION ===
+// =============================================
+function createTree() {
+    const treeGroup = new THREE.Group();
+
+    // Trunk - bigger and taller, rotated to align with Z-axis (vertical)
+    const trunkGeom = new THREE.CylinderGeometry(0.8, 1.0, 6, 8);
+    const trunkMat = new THREE.MeshStandardMaterial({ 
+        color: 0x4d2902,
+        roughness: 0.9,
+        metalness: 0.1
+    });
+    const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+    trunk.castShadow = true;
+    trunk.receiveShadow = true;
+    
+    // Rotate cylinder 90 degrees to align with Z axis (vertical in your rotated plane)
+    trunk.rotation.x = Math.PI / 2;
+    trunk.position.z = 3; 
+    treeGroup.add(trunk);
+
+    // Foliage (Leaves) - Multiple layers, also rotated
+    const leavesMat = new THREE.MeshStandardMaterial({ 
+        color: 0x2d4c1e,
+        roughness: 0.8,
+        metalness: 0.0
+    });
+    
+    // Bottom layer
+    const leaves1 = new THREE.Mesh(new THREE.ConeGeometry(4.5, 6, 8), leavesMat);
+    leaves1.rotation.x = Math.PI / 2;
+    leaves1.position.z = 6;
+    leaves1.castShadow = true;
+    leaves1.receiveShadow = true;
+    treeGroup.add(leaves1);
+    
+    // Middle layer
+    const leaves2 = new THREE.Mesh(new THREE.ConeGeometry(3.5, 5, 8), leavesMat);
+    leaves2.rotation.x = Math.PI / 2;
+    leaves2.position.z = 9;
+    leaves2.castShadow = true;
+    leaves2.receiveShadow = true;
+    treeGroup.add(leaves2);
+    
+    // Top layer
+    const leaves3 = new THREE.Mesh(new THREE.ConeGeometry(2.5, 4.5, 8), leavesMat);
+    leaves3.rotation.x = Math.PI / 2;
+    leaves3.position.z = 12;
+    leaves3.castShadow = true;
+    leaves3.receiveShadow = true;
+    treeGroup.add(leaves3);
+
+    return treeGroup;
+}
+
+function createSimpleTree() {
+    const treeGroup = new THREE.Group();
+
+    // Simple trunk - rotated to align with Z-axis
+    const trunkGeom = new THREE.CylinderGeometry(0.5, 0.8, 5, 6);
+    const trunkMat = new THREE.MeshStandardMaterial({ 
+        color: 0x563f2e,
+        roughness: 0.95
+    });
+    const trunk = new THREE.Mesh(trunkGeom, trunkMat);
+    trunk.rotation.x = Math.PI / 2;
+    trunk.position.z = 2.5;
+    trunk.castShadow = true;
+    treeGroup.add(trunk);
+
+    // Simple spherical foliage (spheres don't need rotation)
+    const leavesGeom = new THREE.SphereGeometry(3.5, 8, 8);
+    const leavesMat = new THREE.MeshStandardMaterial({ 
+        color: 0x3a5f2e,
+        roughness: 0.9
+    });
+    const leaves = new THREE.Mesh(leavesGeom, leavesMat);
+    leaves.position.z = 6.5;
+    leaves.castShadow = true;
+    leaves.receiveShadow = true;
+    treeGroup.add(leaves);
+
+    return treeGroup;
+}
+
+function loadTrees() {
+    fetch('data/trees.geojson') 
+        .then(res => res.json())
+        .then(data => {
+            console.log(`Loading ${data.features.length} trees...`);
+            let treesAdded = 0;
+            
+            data.features.forEach(feature => {
+                if (feature.geometry.type === 'Point') {
+                    const [lon, lat] = feature.geometry.coordinates;
+                    
+                    // Check if tree is within campus bounds
+                    if (lon >= BOUNDS.minLon && lon <= BOUNDS.maxLon &&
+                        lat >= BOUNDS.minLat && lat <= BOUNDS.maxLat) {
+                        
+                        const [x, y] = projectCoord([lon, lat]);
+                        
+                        // Randomly choose between cone tree and spherical tree
+                        const tree = Math.random() > 0.5 ? createTree() : createSimpleTree();
+                        
+                        tree.position.set(x, y, 0); // z=0 so tree sits on ground plane
+                        
+                        // Bigger trees with more size variation
+                        const scale = 1.2 + Math.random() * 0.8; // Random size 1.2-2.0
+                        tree.scale.setScalar(scale);
+                        
+                        // Only rotate around Z axis (vertical axis in your coordinate system)
+                        tree.rotation.z = Math.random() * Math.PI * 2;
+                        
+                        campusGroup.add(tree);
+                        treesAdded++;
+                    }
+                }
+            });
+            
+            console.log(`${treesAdded} trees added to campus`);
+        })
+        .catch(err => {
+            console.log("Tree data not found, generating random trees instead...");
+            generateRandomTrees(300); // More trees!
+        });
+}
+
+// Store building positions for tree clustering
+let buildingPositions = [];
+
+// Alternative: Generate random trees with clustering near buildings
+function generateRandomTrees(count = 300) {
+    console.log(`Generating ${count} random trees...`);
+    
+    // Collect building positions for clustering
+    campusGroup.children.forEach(child => {
+        if (child.userData && child.userData.fileName) {
+            const box = new THREE.Box3().setFromObject(child);
+            const center = new THREE.Vector3();
+            box.getCenter(center);
+            buildingPositions.push({
+                x: center.x,
+                y: center.y,
+                radius: Math.max(box.max.x - box.min.x, box.max.y - box.min.y) / 2
+            });
+        }
+    });
+    
+    for (let i = 0; i < count; i++) {
+        let x, y;
+        
+        // 70% of trees near buildings, 30% random
+        if (Math.random() < 0.7 && buildingPositions.length > 0) {
+            // Place near a random building
+            const building = buildingPositions[Math.floor(Math.random() * buildingPositions.length)];
+            const angle = Math.random() * Math.PI * 2;
+            const distance = building.radius + 5 + Math.random() * 15; // 5-20 units from building
+            
+            x = building.x + Math.cos(angle) * distance;
+            y = building.y + Math.sin(angle) * distance;
+        } else {
+            // Random position within bounds
+            const lon = BOUNDS.minLon + Math.random() * (BOUNDS.maxLon - BOUNDS.minLon);
+            const lat = BOUNDS.minLat + Math.random() * (BOUNDS.maxLat - BOUNDS.minLat);
+            [x, y] = projectCoord([lon, lat]);
+        }
+        
+        const tree = Math.random() > 0.5 ? createTree() : createSimpleTree();
+        tree.position.set(x, y, 0); // z=0 so base is on ground
+        
+        // Bigger trees with more variation
+        const scale = 1.2 + Math.random() * 0.8; // 1.2 to 2.0x scale
+        tree.scale.setScalar(scale);
+        
+        // Only rotate around Z axis
+        tree.rotation.z = Math.random() * Math.PI * 2;
+        
+        campusGroup.add(tree);
+    }
+    
+    console.log(`${count} trees generated on campus`);
+}
+// =============================================
 
 // =============================================
 // === INTERACTION ===
@@ -840,13 +1071,9 @@ loadWalkways();
 loadGeoJson('data/osm_roads.geojson', { material: roadMaterial });
 loadSplitBuildings();
 
-
-//const LOCAL_TREE_URL = 'models/jacaranda_tree_1k.gltf/jacaranda_tree_1k.gltf';
-//gltfLoader.load(LOCAL_TREE_URL, (gltf) => {
-//    const tree = gltf.scene;
-//    tree.scale.setScalar(3);
-//    tree.position.set(180, 80, 0);
-//    campusGroup.add(tree);
-//}, undefined, () => console.warn('Tree model not found.'));
+// Delay tree generation to ensure buildings are loaded first
+setTimeout(() => {
+    loadTrees(); // Will try to load from trees.geojson, fallback to random generation
+}, 1000);
 
 animate(0);
